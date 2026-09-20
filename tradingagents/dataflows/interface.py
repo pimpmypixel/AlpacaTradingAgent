@@ -32,6 +32,7 @@ from .interface_utils import (
     get_model_params,
     get_openai_client_with_timeout,
     get_search_context_for_depth,
+    get_web_search_client_and_tools,
 )
 from tradingagents.openai_model_registry import (
     apply_responses_model_params,
@@ -1149,11 +1150,11 @@ def get_stock_news_openai(ticker, curr_date):
         store_responses = _coerce_bool(config.get("openai_store_responses", False))
 
         # Use client with timeout for web search operations
-        client = get_openai_client_with_timeout(api_key, timeout_seconds=timeout_seconds)
+        client, web_search_tools = get_web_search_client_and_tools(api_key, timeout_seconds=timeout_seconds)
 
         # Get the selected quick model from config
         model = config.get("quick_think_llm", "gpt-5.4-nano")  # fallback to default
-        
+
         # Research depth controls prompt scope and search context
         research_depth = config.get("research_depth", "Medium")
         depth_key = research_depth.lower() if research_depth else "medium"
@@ -1197,6 +1198,8 @@ def get_stock_news_openai(ticker, curr_date):
         else:
             # Use standard chat completions API for GPT-4 and other models
             chat_model_params = get_model_params(model, max_tokens_value=max_output_tokens)
+            if web_search_tools:
+                chat_model_params["tools"] = web_search_tools
             response = client.chat.completions.create(
                 model=model,
                 messages=[
@@ -1255,11 +1258,11 @@ def get_global_news_openai(curr_date, ticker_context=None):
         timeout_seconds = float(config.get("global_news_timeout_seconds", 150))
 
         # Use client with timeout for web search operations
-        client = get_openai_client_with_timeout(api_key, timeout_seconds=timeout_seconds)
-        
+        client, web_search_tools = get_web_search_client_and_tools(api_key, timeout_seconds=timeout_seconds)
+
         # Get the selected quick model from config
         model = config.get("quick_think_llm", "gpt-5.4-nano")  # fallback to default
-        
+
         # Research depth controls prompt scope/search context; global news uses a tuned fast profile.
         research_depth = config.get("research_depth", "Medium")
         depth_key = research_depth.lower() if research_depth else "medium"
@@ -1337,6 +1340,8 @@ def get_global_news_openai(curr_date, ticker_context=None):
         else:
             # Use standard chat completions API for GPT-4 and other models
             chat_model_params = get_model_params(model, max_tokens_value=max_output_tokens)
+            if web_search_tools:
+                chat_model_params["tools"] = web_search_tools
             response = client.chat.completions.create(
                 model=model,
                 messages=[
@@ -1385,11 +1390,11 @@ def get_fundamentals_openai(ticker, curr_date):
         store_responses = _coerce_bool(config.get("openai_store_responses", False))
 
         # Use client with timeout for web search operations
-        client = get_openai_client_with_timeout(api_key, timeout_seconds=timeout_seconds)
+        client, web_search_tools = get_web_search_client_and_tools(api_key, timeout_seconds=timeout_seconds)
 
         # Get the selected quick model from config
         model = config.get("quick_think_llm", "gpt-5.4-nano")  # fallback to default
-        
+
         fundamentals_fast_profile = _coerce_bool(config.get("fundamentals_fast_profile", True))
         if fundamentals_fast_profile:
             search_context = "low"
@@ -1442,6 +1447,8 @@ def get_fundamentals_openai(ticker, curr_date):
         else:
             # Use standard chat completions API for GPT-4 and other models
             chat_model_params = get_model_params(model, max_tokens_value=max_output_tokens)
+            if web_search_tools:
+                chat_model_params["tools"] = web_search_tools
             response = client.chat.completions.create(
                 model=model,
                 messages=[

@@ -21,12 +21,45 @@ _TRAILING_INTERACTIVE_PATTERNS = (
 )
 
 
-def get_openai_client_with_timeout(api_key, timeout_seconds=300):
-    """Create OpenAI client with configurable timeout for slow web search operations."""
-    return OpenAI(
-        api_key=api_key,
-        timeout=httpx.Timeout(timeout_seconds, connect=10.0),
-    )
+def get_openai_client_with_timeout(api_key, timeout_seconds=300, base_url=None):
+    """Create OpenAI client with configurable timeout for slow web search operations.
+
+    base_url routes this at an OpenAI-compatible proxy (e.g. OpenRouter) instead
+    of api.openai.com - see get_web_search_client_and_tools(), which is what
+    interface.py's web-search tools actually call.
+    """
+    client_kwargs = {
+        "api_key": api_key,
+        "timeout": httpx.Timeout(timeout_seconds, connect=10.0),
+    }
+    if base_url:
+        client_kwargs["base_url"] = base_url
+    return OpenAI(**client_kwargs)
+
+
+def get_web_search_client_and_tools(api_key, timeout_seconds=300, *, max_results=5):
+    """Build the client and `tools` kwarg for a web-search-enabled chat completion.
+
+    OpenAI's own Responses API (client.responses.create(tools=[{"type":
+    "web_search"}])) is handled separately in interface.py and untouched by
+    this helper. This one is for the plain chat.completions.create() path
+    those same tool functions already fall back to for non-Responses
+    models - when OPENAI_USE_LOCAL points that fallback at an OpenAI-
+    compatible proxy that isn't OpenAI itself (e.g. OpenRouter, which is the
+    only proxy known to support this), it can still get real web search via
+    the proxy's own tool, instead of a plain no-search completion.
+    """
+    from .config import is_local_openai_enabled, get_openai_base_url
+
+    use_local = is_local_openai_enabled()
+    base_url = get_openai_base_url() if use_local else None
+    client = get_openai_client_with_timeout(api_key, timeout_seconds=timeout_seconds, base_url=base_url)
+
+    tools = None
+    if use_local and base_url and "openrouter.ai" in base_url:
+        tools = [{"type": "openrouter:web_search", "parameters": {"max_results": max_results}}]
+
+    return client, tools
 
 
 def _coerce_bool(value) -> bool:
