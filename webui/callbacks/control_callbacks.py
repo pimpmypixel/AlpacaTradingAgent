@@ -278,17 +278,37 @@ def register_control_callbacks(app):
             Output("xai-reasoning-effort-group", "style"),
         ],
         [Input("llm-provider", "value")],
-        [State("quick-llm", "value"), State("deep-llm", "value")],
+        [
+            State("quick-llm", "value"),
+            State("deep-llm", "value"),
+            State("settings-store", "data"),
+        ],
     )
-    def update_provider_models(provider, current_quick, current_deep):
+    def update_provider_models(provider, current_quick, current_deep, stored_settings):
         provider = provider or "openai"
         metadata = get_provider_ui_metadata(provider)
         quick_options = get_model_options_for_provider(provider, "quick")
         deep_options = get_model_options_for_provider(provider, "deep")
         quick_values = {option["value"] for option in quick_options}
         deep_values = {option["value"] for option in deep_options}
-        quick_value = current_quick if current_quick in quick_values else get_default_model_for_provider(provider, "quick")
-        deep_value = current_deep if current_deep in deep_values else get_default_model_for_provider(provider, "deep")
+        # On a fresh page load this callback fires once with the dropdown's
+        # hardcoded layout default ("openai") before the settings-restore
+        # callback (storage_callbacks.py) changes llm-provider.value to the
+        # persisted choice, which fires this callback again. On that second,
+        # real firing, current_quick/current_deep still only reflect the
+        # first firing's defaults - the persisted store has the model the
+        # user actually picked, so prefer it (only when it was saved for
+        # this same provider; a stored model from a different provider's
+        # catalog isn't a valid option here).
+        stored_settings = stored_settings or {}
+        stored_quick = stored_quick_deep = None
+        if stored_settings.get("llm_provider") == provider:
+            stored_quick = stored_settings.get("quick_llm")
+            stored_quick_deep = stored_settings.get("deep_llm")
+        preferred_quick = stored_quick if stored_quick in quick_values else current_quick
+        preferred_deep = stored_quick_deep if stored_quick_deep in deep_values else current_deep
+        quick_value = preferred_quick if preferred_quick in quick_values else get_default_model_for_provider(provider, "quick")
+        deep_value = preferred_deep if preferred_deep in deep_values else get_default_model_for_provider(provider, "deep")
         provider_info = _status_panel(
             metadata["title"],
             f"{metadata['summary']} API key: {metadata['api_key']}. Endpoint: {metadata['endpoint']}.",
