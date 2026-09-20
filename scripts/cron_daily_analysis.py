@@ -54,17 +54,17 @@ def build_config():
 
     config = DEFAULT_CONFIG.copy()
     config["llm_provider"] = os.getenv("LLM_PROVIDER", config["llm_provider"])
-    # OpenRouter has no built-in catalog and needs a vendor-prefixed slug.
-    # "openai/gpt-5.4-nano" (mechanically prefixing default_config.py's bare
-    # OpenAI model name) does NOT resolve to a tool-calling-capable model on
-    # OpenRouter in testing (analysts silently skip every tool call).
-    # Verify against OpenRouter's current catalog (https://openrouter.ai/models)
-    # before changing these long-term.
+    # OpenRouter has no built-in catalog and needs a vendor-prefixed slug -
+    # default_config.py's bare "gpt-5.4-nano"/"gpt-5.4-mini" (the app's
+    # normal OpenAI-provider defaults) need an "openai/" prefix to resolve
+    # on OpenRouter. Confirmed working end-to-end (real tool calls, grounded
+    # reports) as of this writing; re-verify against OpenRouter's current
+    # catalog (https://openrouter.ai/models) if this stops working.
     quick_default = config["quick_think_llm"]
     deep_default = config["deep_think_llm"]
     if config["llm_provider"] == "openrouter":
-        quick_default = "deepseek/deepseek-v4.1-flash"
-        deep_default = "google/gemini-3.8-flash"
+        quick_default = f"openai/{quick_default}"
+        deep_default = f"openai/{deep_default}"
     config["quick_think_llm"] = os.getenv("TRADINGAGENTS_CRON_QUICK_LLM", quick_default)
     config["deep_think_llm"] = os.getenv("TRADINGAGENTS_CRON_DEEP_LLM", deep_default)
 
