@@ -3,6 +3,7 @@ import time
 import json
 from langchain_core.messages import AIMessage, ToolMessage
 from tradingagents.prompts import load_prompt, render_prompt
+from tradingagents.agents.utils.tool_call_compat import get_pending_tool_calls
 
 # Import prompt capture utility
 try:
@@ -128,11 +129,11 @@ def create_macro_analyst(llm, toolkit):
             tool_result_cache = {}
             iteration_count = 0
             
-            while tools and getattr(result, "additional_kwargs", {}).get("tool_calls") and iteration_count < max_iterations:
+            while tools and get_pending_tool_calls(result) and iteration_count < max_iterations:
                 iteration_count += 1
                 # print(f"[MACRO] Tool execution iteration {iteration_count}")
                 
-                for tool_call in result.additional_kwargs["tool_calls"]:
+                for tool_call in get_pending_tool_calls(result):
                     # Handle different tool call structures
                     if isinstance(tool_call, dict):
                         tool_name = tool_call.get("name") or tool_call.get("function", {}).get("name")
@@ -199,7 +200,7 @@ def create_macro_analyst(llm, toolkit):
                                 tool_failures.append(tool_name)
 
                     tool_call_id = tool_call.get("id") or tool_call.get("tool_call_id")
-                    ai_tool_call_msg = AIMessage(content="", additional_kwargs={"tool_calls": [tool_call]})
+                    ai_tool_call_msg = AIMessage(content="", tool_calls=[tool_call])
                     tool_msg = ToolMessage(content=str(tool_result), tool_call_id=tool_call_id)
                     messages_history.extend([ai_tool_call_msg, tool_msg])
 
@@ -210,7 +211,7 @@ def create_macro_analyst(llm, toolkit):
                     print(f"[MACRO] ❌ Error in LLM chain iteration {iteration_count}: {e}")
                     break
 
-            if tools and getattr(result, "additional_kwargs", {}).get("tool_calls"):
+            if tools and get_pending_tool_calls(result):
                 result = AIMessage(
                     content=(
                         (result.content or "").strip()

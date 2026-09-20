@@ -4,6 +4,7 @@ import time
 import json
 import re
 from tradingagents.prompts import load_prompt, render_prompt
+from tradingagents.agents.utils.tool_call_compat import get_pending_tool_calls
 
 # Import prompt capture utility
 try:
@@ -206,9 +207,9 @@ def create_market_analyst(llm, toolkit):
         iteration_count = 0
 
         # Handle iterative tool calls until the model stops requesting them
-        while tools and getattr(result, "additional_kwargs", {}).get("tool_calls") and iteration_count < max_tool_iterations:
+        while tools and get_pending_tool_calls(result) and iteration_count < max_tool_iterations:
             iteration_count += 1
-            for tool_call in result.additional_kwargs["tool_calls"]:
+            for tool_call in get_pending_tool_calls(result):
                 # Handle different tool call structures
                 if isinstance(tool_call, dict):
                     tool_name = tool_call.get("name") or tool_call.get("function", {}).get("name")
@@ -256,7 +257,7 @@ def create_market_analyst(llm, toolkit):
                 tool_call_id = tool_call.get("id") or tool_call.get("tool_call_id")
                 ai_tool_call_msg = AIMessage(
                     content="",
-                    additional_kwargs={"tool_calls": [tool_call]},
+                    tool_calls=[tool_call],
                 )
                 tool_msg = ToolMessage(
                     content=str(tool_result),
@@ -269,7 +270,7 @@ def create_market_analyst(llm, toolkit):
             # Ask the LLM to continue with the new context
             result = chain.invoke(messages_history)
 
-        if tools and getattr(result, "additional_kwargs", {}).get("tool_calls"):
+        if tools and get_pending_tool_calls(result):
             result = AIMessage(
                 content=(
                     (result.content or "").strip()

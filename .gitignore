@@ -5,6 +5,12 @@ __pycache__/
 src/
 eval_results/
 eval_data/
+logs/
+reports/
 *.egg-info/
 .env
 data/
+.venv/
+*.swp
+*.swo
+*~
